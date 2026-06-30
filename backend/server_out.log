@@ -1,0 +1,9 @@
+INFO:     127.0.0.1:63705 - "POST /api/summarize/pdf HTTP/1.1" 500 Internal Server Error
+INFO:     127.0.0.1:63820 - "POST /api/summarize/pdf HTTP/1.1" 500 Internal Server Error
+INFO:     127.0.0.1:63832 - "POST /api/summarize/pdf HTTP/1.1" 500 Internal Server Error
+INFO:     127.0.0.1:63840 - "POST /api/summarize/pdf HTTP/1.1" 500 Internal Server Error
+INFO:     127.0.0.1:58849 - "POST /api/summarize/pdf HTTP/1.1" 500 Internal Server Error
+INFO:     127.0.0.1:64244 - "POST /api/summarize/pdf HTTP/1.1" 500 Internal Server Error
+INFO:     127.0.0.1:49361 - "POST /api/summarize/pdf HTTP/1.1" 500 Internal Server Error
+INFO:     127.0.0.1:49382 - "POST /api/summarize/pdf HTTP/1.1" 500 Internal Server Error
+INFO:     127.0.0.1:49388 - "GET /health HTTP/1.1" 200 OK

@@ -1,0 +1,8 @@
+INFO:     Started server process [5680]
+INFO:     Waiting for application startup.
+INFO:main:PyMuPDF: available
+INFO:main:pdfplumber: available
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+INFO:app.services.pdf_service:PyMuPDF extracted 62 chars from 1 pages
+ERROR:app.api.summarize:PDF summarization failed: Illegal header value b'Bearer '

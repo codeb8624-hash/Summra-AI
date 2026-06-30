@@ -1,5 +1,7 @@
 package com.example.summraai.data.repository
 
+import android.content.ContentResolver
+import android.net.Uri
 import com.example.summraai.ai.service.AIService
 import com.example.summraai.ai.service.AIServiceImpl
 import com.example.summraai.domain.model.SummaryStyle
@@ -22,6 +24,29 @@ class AISummaryRepositoryImpl(
 
         return aiService.generateSummary(text, style.name)
             .mapError { mapToUserFriendlyMessage(it) }
+    }
+
+    override suspend fun generatePdfSummary(
+        uri: Uri,
+        style: SummaryStyle,
+        contentResolver: ContentResolver
+    ): Result<PdfSummaryResult> {
+        return aiService.generatePdfSummary(uri, style.name, contentResolver)
+            .mapError { mapToUserFriendlyMessage(it) }
+            .fold(
+                onSuccess = { data ->
+                    Result.success(
+                        PdfSummaryResult(
+                            content = data.content,
+                            style = style,
+                            fileName = data.fileName,
+                            pageCount = data.pages,
+                            wordCount = data.wordCount
+                        )
+                    )
+                },
+                onFailure = { Result.failure(it) }
+            )
     }
 
     private fun mapToUserFriendlyMessage(error: Throwable): Throwable {
