@@ -17,4 +17,10 @@ interface BackendApi {
         @Part file: MultipartBody.Part,
         @Part("style") style: RequestBody
     ): PdfSummarizeResponse
+
+    @POST("api/pdf/chat")
+    suspend fun chat(@Body request: ChatRequest): ChatResponse
+
+    @POST("api/pdf/task")
+    suspend fun performTask(@Body request: TaskRequest): TaskResponse
 }

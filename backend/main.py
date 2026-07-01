@@ -10,6 +10,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.summarize import router as summarize_router
+from app.api.chat import router as chat_router
 from app.services.pdf_service import check_dependencies
 
 logging.basicConfig(level=logging.INFO)
@@ -46,6 +47,7 @@ app.add_middleware(
 )
 
 app.include_router(summarize_router)
+app.include_router(chat_router)
 
 
 @app.get("/")

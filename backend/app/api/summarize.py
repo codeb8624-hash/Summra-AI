@@ -7,6 +7,7 @@ from app.models.schemas import SummarizeRequest, SummarizeResponse, PdfSummarize
 from app.services.ai_service import call_openrouter, SYSTEM_PROMPTS
 from app.services.document_service import validate_pdf, chunk_text, count_words, DocumentValidationError
 from app.services.pdf_service import extract_text, get_page_count, PDFExtractionException
+from app.services.rag_service import rag_service
 
 logger = logging.getLogger(__name__)
 
@@ -23,8 +24,17 @@ async def summarize_text(request: SummarizeRequest):
             detail=f"Invalid style '{request.style}'. Must be one of: {', '.join(SYSTEM_PROMPTS.keys())}",
         )
     try:
-        summary = await call_openrouter(request.text.strip(), request.style)
-        return SummarizeResponse(success=True, summary=summary)
+        system_prompt = SYSTEM_PROMPTS[request.style]
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": f"Please summarize the following text:\n\n{request.text.strip()}"},
+        ]
+        result = await call_openrouter(messages)
+        if not result["success"]:
+            raise HTTPException(status_code=500, detail=result["message"])
+        return SummarizeResponse(success=True, summary=result["content"])
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error("Summarization failed: %s", e)
         raise HTTPException(status_code=500, detail=str(e))
@@ -78,33 +88,68 @@ async def summarize_pdf(
         )
 
     total_words = count_words(extracted)
+
+    # Process for RAG
+    try:
+        document_id = await rag_service.process_document(extracted, file.filename)
+    except Exception as e:
+        logger.error(f"RAG processing failed: {e}")
+        document_id = None
+
     chunks = chunk_text(extracted)
+    system_prompt = SYSTEM_PROMPTS[style]
     try:
         if len(chunks) == 1:
-            summary = await call_openrouter(chunks[0], style)
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": f"Please summarize the following text:\n\n{chunks[0]}"},
+            ]
+            result = await call_openrouter(messages)
+            if not result["success"]:
+                raise HTTPException(status_code=500, detail=result["message"])
+            summary = result["content"]
         else:
             all_summaries: list[str] = []
             for i, chunk in enumerate(chunks):
                 logger.info("Summarizing chunk %d/%d (%d chars)", i + 1, len(chunks), len(chunk))
-                part = await call_openrouter(chunk, style)
-                all_summaries.append(part)
+                messages = [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": f"Please summarize the following text:\n\n{chunk}"},
+                ]
+                part_result = await call_openrouter(messages)
+                if not part_result["success"]:
+                    raise HTTPException(status_code=500, detail=part_result["message"])
+                all_summaries.append(part_result["content"])
             combined = "\n\n".join(all_summaries)
             if len(all_summaries) > 1:
-                summary = await call_openrouter(
-                    f"The following are summaries of different sections of a document. "
-                    f"Please combine them into one coherent overall summary:\n\n{combined}",
-                    style,
-                )
+                combine_messages = [
+                    {"role": "system", "content": system_prompt},
+                    {
+                        "role": "user",
+                        "content": (
+                            "The following are summaries of different sections of a document. "
+                            "Please combine them into one coherent overall summary:\n\n"
+                            f"{combined}"
+                        ),
+                    },
+                ]
+                combine_result = await call_openrouter(combine_messages)
+                if not combine_result["success"]:
+                    raise HTTPException(status_code=500, detail=combine_result["message"])
+                summary = combine_result["content"]
             else:
                 summary = combined
 
         return PdfSummarizeResponse(
             success=True,
             summary=summary,
+            document_id=document_id,
             file_name=file.filename,
             pages=page_count,
             word_count=total_words,
         )
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error("PDF summarization failed: %s", e)
         raise HTTPException(status_code=500, detail=str(e))

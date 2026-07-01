@@ -4,6 +4,8 @@ import android.content.ContentResolver
 import android.net.Uri
 import com.example.summraai.ai.service.AIService
 import com.example.summraai.ai.service.AIServiceImpl
+import com.example.summraai.ai.service.ChatResult
+import com.example.summraai.data.remote.ChatMessage
 import com.example.summraai.domain.model.SummaryStyle
 import retrofit2.HttpException
 import java.io.IOException
@@ -38,6 +40,7 @@ class AISummaryRepositoryImpl(
                     Result.success(
                         PdfSummaryResult(
                             content = data.content,
+                            documentId = data.documentId,
                             style = style,
                             fileName = data.fileName,
                             pageCount = data.pages,
@@ -47,6 +50,24 @@ class AISummaryRepositoryImpl(
                 },
                 onFailure = { Result.failure(it) }
             )
+    }
+
+    override suspend fun chat(
+        documentId: String,
+        question: String,
+        history: List<ChatMessage>?
+    ): Result<ChatResult> {
+        return aiService.chat(documentId, question, history)
+            .mapError { mapToUserFriendlyMessage(it) }
+    }
+
+    override suspend fun performTask(
+        documentId: String,
+        taskType: String,
+        language: String?
+    ): Result<String> {
+        return aiService.performTask(documentId, taskType, language)
+            .mapError { mapToUserFriendlyMessage(it) }
     }
 
     private fun mapToUserFriendlyMessage(error: Throwable): Throwable {
