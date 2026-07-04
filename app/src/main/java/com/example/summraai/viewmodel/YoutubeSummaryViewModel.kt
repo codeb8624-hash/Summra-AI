@@ -1,14 +1,12 @@
 package com.example.summraai.viewmodel
 
-import android.content.ContentResolver
-import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.summraai.core.common.UiState
 import com.example.summraai.data.remote.ChatMessage
 import com.example.summraai.data.repository.AISummaryRepository
 import com.example.summraai.data.repository.AISummaryRepositoryImpl
-import com.example.summraai.data.repository.PdfSummaryResult
+import com.example.summraai.data.repository.YoutubeSummaryResult
 import com.example.summraai.domain.model.SummaryStyle
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -16,12 +14,12 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-class PdfSummaryViewModel(
+class YoutubeSummaryViewModel(
     private val repository: AISummaryRepository = AISummaryRepositoryImpl()
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow<UiState<PdfSummaryResult>>(UiState.Idle)
-    val uiState: StateFlow<UiState<PdfSummaryResult>> = _uiState.asStateFlow()
+    private val _uiState = MutableStateFlow<UiState<YoutubeSummaryResult>>(UiState.Idle)
+    val uiState: StateFlow<UiState<YoutubeSummaryResult>> = _uiState.asStateFlow()
 
     private val _chatMessages = MutableStateFlow<List<ChatUiMessage>>(emptyList())
     val chatMessages: StateFlow<List<ChatUiMessage>> = _chatMessages.asStateFlow()
@@ -32,13 +30,13 @@ class PdfSummaryViewModel(
     private var generateJob: Job? = null
     private var chatJob: Job? = null
 
-    fun generatePdfSummary(uri: Uri, style: SummaryStyle, contentResolver: ContentResolver) {
+    fun generateSummary(url: String, style: SummaryStyle) {
         generateJob?.cancel()
         _chatMessages.value = emptyList()
 
         _uiState.value = UiState.Loading
         generateJob = viewModelScope.launch {
-            repository.generatePdfSummary(uri, style, contentResolver)
+            repository.generateYoutubeSummary(url, style)
                 .onSuccess { result ->
                     _uiState.value = UiState.Success(result)
                 }
@@ -56,18 +54,17 @@ class PdfSummaryViewModel(
         val documentId = currentState.data.documentId ?: return
 
         chatJob?.cancel()
-        
-        // Add user message
+
         val userMessage = ChatUiMessage(role = "user", content = question)
         _chatMessages.value = _chatMessages.value + userMessage
-        
+
         _isChatLoading.value = true
         chatJob = viewModelScope.launch {
             val history = _chatMessages.value.map { ChatMessage(it.role, it.content) }
             repository.chat(documentId, question, history)
                 .onSuccess { result ->
                     val aiMessage = ChatUiMessage(
-                        role = "assistant", 
+                        role = "assistant",
                         content = result.answer,
                         sources = result.sources
                     )
@@ -76,7 +73,7 @@ class PdfSummaryViewModel(
                 }
                 .onFailure { error ->
                     val errorMessage = ChatUiMessage(
-                        role = "assistant", 
+                        role = "assistant",
                         content = "Error: ${error.message ?: "Failed to get answer"}"
                     )
                     _chatMessages.value = _chatMessages.value + errorMessage
@@ -100,7 +97,7 @@ class PdfSummaryViewModel(
                 }
                 .onFailure { error ->
                     val errorMessage = ChatUiMessage(
-                        role = "assistant", 
+                        role = "assistant",
                         content = "Error: ${error.message ?: "Failed to perform task"}"
                     )
                     _chatMessages.value = _chatMessages.value + errorMessage

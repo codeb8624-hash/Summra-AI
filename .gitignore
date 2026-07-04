@@ -1,15 +1,80 @@
+# ============================
+# Android
+# ============================
+
 *.iml
-.gradle
-/local.properties
-/.idea/caches
-/.idea/libraries
-/.idea/modules.xml
-/.idea/workspace.xml
-/.idea/navEditor.xml
-/.idea/assetWizardSettings.xml
-.DS_Store
-/build
+.gradle/
+build/
+local.properties
 /captures
 .externalNativeBuild
 .cxx
-local.properties
+
+# ============================
+# IDE
+# ============================
+
+.idea/
+.vscode/
+
+# ============================
+# Environment
+# ============================
+
+.env
+backend/.env
+
+# ============================
+# Python
+# ============================
+
+__pycache__/
+**/__pycache__/
+
+*.py[cod]
+*$py.class
+
+.pytest_cache/
+.mypy_cache/
+
+# ============================
+# Virtual Environments
+# ============================
+
+venv/
+.venv/
+env/
+
+# ============================
+# ChromaDB
+# ============================
+
+backend/chroma_db/
+chroma_db/
+
+# ============================
+# Logs
+# ============================
+
+*.log
+
+# ============================
+# Python Build
+# ============================
+
+dist/
+*.egg-info/
+
+# ============================
+# Coverage
+# ============================
+
+.coverage
+htmlcov/
+
+# ============================
+# Operating System
+# ============================
+
+Thumbs.db
+.DS_Store

@@ -1,13 +1,23 @@
 import logging
+from urllib.parse import urlparse
 
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 from fastapi.responses import JSONResponse
 
-from app.models.schemas import SummarizeRequest, SummarizeResponse, PdfSummarizeResponse
-from app.services.ai_service import call_openrouter, SYSTEM_PROMPTS
+from app.models.schemas import (
+    SummarizeRequest,
+    SummarizeResponse,
+    PdfSummarizeResponse,
+    WebsiteSummarizeRequest,
+    WebsiteSummarizeResponse,
+    WebsiteMetadata,
+)
+from app.services.ai_service import call_openrouter
+from app.services.prompt_templates import get_system_prompt, VALID_STYLES
 from app.services.document_service import validate_pdf, chunk_text, count_words, DocumentValidationError
 from app.services.pdf_service import extract_text, get_page_count, PDFExtractionException
 from app.services.rag_service import rag_service
+from app.services.website_service import extract_article_text, ExtractionError, ArticleMetadata
 
 logger = logging.getLogger(__name__)
 
@@ -18,13 +28,13 @@ router = APIRouter(prefix="/api/summarize", tags=["summarize"])
 async def summarize_text(request: SummarizeRequest):
     if not request.text or not request.text.strip():
         raise HTTPException(status_code=400, detail="Text cannot be empty")
-    if request.style not in SYSTEM_PROMPTS:
+    if request.style not in VALID_STYLES:
         raise HTTPException(
             status_code=400,
-            detail=f"Invalid style '{request.style}'. Must be one of: {', '.join(SYSTEM_PROMPTS.keys())}",
+            detail=f"Invalid style '{request.style}'. Must be one of: {', '.join(VALID_STYLES)}",
         )
     try:
-        system_prompt = SYSTEM_PROMPTS[request.style]
+        system_prompt = get_system_prompt(request.style)
         messages = [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": f"Please summarize the following text:\n\n{request.text.strip()}"},
@@ -35,9 +45,9 @@ async def summarize_text(request: SummarizeRequest):
         return SummarizeResponse(success=True, summary=result["content"])
     except HTTPException:
         raise
-    except Exception as e:
-        logger.error("Summarization failed: %s", e)
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        logger.exception("Summarization failed")
+        raise HTTPException(status_code=500, detail="An unexpected error occurred.")
 
 
 @router.post("/pdf")
@@ -60,12 +70,12 @@ async def summarize_pdf(
             content=PdfSummarizeResponse(success=False, message=str(e)).model_dump(),
         )
 
-    if style not in SYSTEM_PROMPTS:
+    if style not in VALID_STYLES:
         return JSONResponse(
             status_code=400,
             content=PdfSummarizeResponse(
                 success=False,
-                message=f"Invalid style '{style}'. Must be one of: {', '.join(SYSTEM_PROMPTS.keys())}",
+                message=f"Invalid style '{style}'. Must be one of: {', '.join(VALID_STYLES)}",
             ).model_dump(),
         )
 
@@ -92,12 +102,12 @@ async def summarize_pdf(
     # Process for RAG
     try:
         document_id = await rag_service.process_document(extracted, file.filename)
-    except Exception as e:
-        logger.error(f"RAG processing failed: {e}")
+    except Exception:
+        logger.exception("RAG processing failed: file=%s", file.filename)
         document_id = None
 
     chunks = chunk_text(extracted)
-    system_prompt = SYSTEM_PROMPTS[style]
+    system_prompt = get_system_prompt(style)
     try:
         if len(chunks) == 1:
             messages = [
@@ -106,7 +116,8 @@ async def summarize_pdf(
             ]
             result = await call_openrouter(messages)
             if not result["success"]:
-                raise HTTPException(status_code=500, detail=result["message"])
+                status = 402 if result.get("error") == "MODEL_UNAVAILABLE" else 500
+                raise HTTPException(status_code=status, detail=result["message"])
             summary = result["content"]
         else:
             all_summaries: list[str] = []
@@ -118,7 +129,8 @@ async def summarize_pdf(
                 ]
                 part_result = await call_openrouter(messages)
                 if not part_result["success"]:
-                    raise HTTPException(status_code=500, detail=part_result["message"])
+                    status = 402 if part_result.get("error") == "MODEL_UNAVAILABLE" else 500
+                    raise HTTPException(status_code=status, detail=part_result["message"])
                 all_summaries.append(part_result["content"])
             combined = "\n\n".join(all_summaries)
             if len(all_summaries) > 1:
@@ -135,7 +147,8 @@ async def summarize_pdf(
                 ]
                 combine_result = await call_openrouter(combine_messages)
                 if not combine_result["success"]:
-                    raise HTTPException(status_code=500, detail=combine_result["message"])
+                    status = 402 if combine_result.get("error") == "MODEL_UNAVAILABLE" else 500
+                    raise HTTPException(status_code=status, detail=combine_result["message"])
                 summary = combine_result["content"]
             else:
                 summary = combined
@@ -150,6 +163,97 @@ async def summarize_pdf(
         )
     except HTTPException:
         raise
-    except Exception as e:
-        logger.error("PDF summarization failed: %s", e)
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        logger.exception("PDF summarization failed: file=%s", file.filename)
+        raise HTTPException(status_code=500, detail="An unexpected error occurred while summarizing the PDF.")
+
+
+def _convert_metadata(am: ArticleMetadata | None) -> WebsiteMetadata | None:
+    if am is None:
+        return None
+    return WebsiteMetadata(
+        title=am.title,
+        domain=am.domain,
+        author=am.author,
+        published_date=am.published_date,
+        language=am.language,
+        description=am.description,
+        og_image=am.og_image,
+        favicon=am.favicon,
+        canonical_url=am.canonical_url,
+    )
+
+
+@router.post("/website", response_model=WebsiteSummarizeResponse)
+async def summarize_website(request: WebsiteSummarizeRequest):
+    logger.info("=== Entering /api/summarize/website ===")
+    logger.info("Request received: url=%s style=%s", request.url, request.style)
+
+    parsed = urlparse(request.url)
+    if not parsed.scheme or not parsed.netloc:
+        raise HTTPException(status_code=400, detail="Invalid URL. Must be a valid http or https URL.")
+    if parsed.scheme not in ("http", "https"):
+        raise HTTPException(status_code=400, detail="Only http and https URLs are supported.")
+    logger.info("Request validated: scheme=%s host=%s", parsed.scheme, parsed.hostname)
+
+    style = request.style if request.style in VALID_STYLES else "CONCISE"
+    logger.info("Style chosen: %s", style)
+
+    try:
+        result = await extract_article_text(request.url)
+        logger.info("Article extracted: url=%s method=%s words=%d", request.url, result.method, result.word_count)
+    except ExtractionError as e:
+        logger.warning("Extraction failed: url=%s msg=%s", request.url, e.user_message)
+        raise HTTPException(status_code=400, detail=e.user_message)
+
+    try:
+        document_id = await rag_service.process_document(result.text, request.url)
+        logger.info("RAG processed: url=%s document_id=%s", request.url, document_id)
+    except Exception:
+        logger.exception("RAG processing failed: url=%s", request.url)
+        document_id = None
+
+    try:
+        messages = [
+            {"role": "system", "content": get_system_prompt(style)},
+            {"role": "user", "content": f"Please summarize the following web page content:\n\n{result.text}"},
+        ]
+        logger.info("AI request sent: url=%s style=%s", request.url, style)
+        ai_result = await call_openrouter(messages)
+        logger.info("AI response received: url=%s success=%s", request.url, ai_result.get("success"))
+
+        if not ai_result["success"]:
+            logger.error("AI call failed: url=%s msg=%s", request.url, ai_result["message"])
+            if ai_result.get("error") == "MODEL_UNAVAILABLE":
+                return JSONResponse(
+                    status_code=402,
+                    content=WebsiteSummarizeResponse(
+                        success=False,
+                        message="AI credits required. Please add credits to your OpenRouter account to use this feature.",
+                    ).model_dump(),
+                )
+            raise HTTPException(status_code=500, detail=ai_result["message"])
+
+        summary = ai_result["content"]
+        summary_word_count = len(summary.split())
+        reading_time_seconds = int((summary_word_count / 200) * 60)
+        compression_ratio = round(summary_word_count / max(result.word_count, 1), 4)
+        logger.info("Response prepared: url=%s words=%d ratio=%.4f", request.url, summary_word_count, compression_ratio)
+
+        logger.info("=== Exiting /api/summarize/website (success) ===")
+        return WebsiteSummarizeResponse(
+            success=True,
+            summary=summary,
+            document_id=document_id,
+            metadata=_convert_metadata(result.metadata),
+            word_count=summary_word_count,
+            original_word_count=result.word_count,
+            compression_ratio=compression_ratio,
+            reading_time_seconds=reading_time_seconds,
+            style=style,
+        )
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Website summarization failed: url=%s", request.url)
+        raise HTTPException(status_code=500, detail="An unexpected error occurred while summarizing the website.")

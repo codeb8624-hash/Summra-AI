@@ -168,6 +168,16 @@ Task types: `notes`, `quiz`, `flashcards`, `important_questions`, `explain`, `ex
 
 ---
 
+## Fixes Applied
+
+### Jul 3, 2026 — YoutubeSummaryScreen brace imbalance
+
+- **Root cause:** `formatViewCount()` was accidentally placed inside `ChatBubble`, displacing closing braces
+- **Fix:** Extracted `formatViewCount()` to top level, added missing `}` for `if (sources.isNotEmpty())` block and `ChatBubble` function body
+- **Verification:** `./gradlew assembleDebug` passes
+
+---
+
 ## Build & Run
 
 ### Prerequisites

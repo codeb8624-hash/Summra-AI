@@ -98,6 +98,7 @@ def get_page_count(content: bytes) -> int:
         doc.close()
         return count
     except Exception:
+        logger.warning("Failed to get PDF page count", exc_info=True)
         return 0
 
 

@@ -12,3 +12,9 @@ langchain==0.3.14
 langchain-community==0.3.14
 langchain-chroma==0.1.4
 torch==2.5.1
+beautifulsoup4==4.12.2
+trafilatura==2.1.0
+readability-lxml==0.8.4.1
+lxml==6.1.1
+yt-dlp==2024.12.13
+youtube-transcript-api>=1.0.0,<2.0.0

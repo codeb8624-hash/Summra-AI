@@ -18,9 +18,21 @@ interface BackendApi {
         @Part("style") style: RequestBody
     ): PdfSummarizeResponse
 
+    @POST("api/summarize/website")
+    suspend fun summarizeWebsite(@Body request: WebsiteSummarizeRequest): WebsiteSummarizeResponse
+
     @POST("api/pdf/chat")
     suspend fun chat(@Body request: ChatRequest): ChatResponse
 
     @POST("api/pdf/task")
     suspend fun performTask(@Body request: TaskRequest): TaskResponse
+
+    @POST("api/youtube/summarize")
+    suspend fun summarizeYoutube(@Body request: YoutubeSummarizeRequest): YoutubeSummarizeResponse
+
+    @POST("api/youtube/chat")
+    suspend fun youtubeChat(@Body request: ChatRequest): ChatResponse
+
+    @POST("api/youtube/task")
+    suspend fun youtubeTask(@Body request: TaskRequest): TaskResponse
 }

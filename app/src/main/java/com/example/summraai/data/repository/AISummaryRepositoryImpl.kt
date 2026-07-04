@@ -28,6 +28,80 @@ class AISummaryRepositoryImpl(
             .mapError { mapToUserFriendlyMessage(it) }
     }
 
+    override suspend fun generateWebsiteSummary(
+        url: String,
+        style: SummaryStyle
+    ): Result<WebsiteSummaryResult> {
+        if (url.isBlank()) {
+            return Result.failure(IllegalArgumentException("URL cannot be empty"))
+        }
+        if (!url.startsWith("http://") && !url.startsWith("https://")) {
+            return Result.failure(IllegalArgumentException("Invalid URL format. URL must start with http:// or https://"))
+        }
+        return aiService.generateWebsiteSummary(url, style.name)
+            .mapError { mapToUserFriendlyMessage(it) }
+            .fold(
+                onSuccess = { data ->
+                    Result.success(
+                        WebsiteSummaryResult(
+                            content = data.content,
+                            documentId = data.documentId,
+                            style = style,
+                            title = data.title,
+                            domain = data.domain,
+                            author = data.author,
+                            publishedDate = data.publishedDate,
+                            language = data.language,
+                            description = data.description,
+                            ogImage = data.ogImage,
+                            favicon = data.favicon,
+                            canonicalUrl = data.canonicalUrl,
+                            wordCount = data.wordCount,
+                            originalWordCount = data.originalWordCount,
+                            compressionRatio = data.compressionRatio,
+                            readingTimeSeconds = data.readingTimeSeconds
+                        )
+                    )
+                },
+                onFailure = { Result.failure(it) }
+            )
+    }
+
+    override suspend fun generateYoutubeSummary(
+        url: String,
+        style: SummaryStyle
+    ): Result<YoutubeSummaryResult> {
+        if (url.isBlank()) {
+            return Result.failure(IllegalArgumentException("URL cannot be empty"))
+        }
+        return aiService.generateYoutubeSummary(url, style.name)
+            .mapError { mapToUserFriendlyMessage(it) }
+            .fold(
+                onSuccess = { data ->
+                    Result.success(
+                        YoutubeSummaryResult(
+                            content = data.content,
+                            documentId = data.documentId,
+                            style = style,
+                            title = data.title,
+                            channel = data.channel,
+                            channelUrl = data.channelUrl,
+                            durationSeconds = data.durationSeconds,
+                            thumbnailUrl = data.thumbnailUrl,
+                            viewCount = data.viewCount,
+                            publishDate = data.publishDate,
+                            description = data.description,
+                            language = data.language,
+                            wordCount = data.wordCount,
+                            transcriptWordCount = data.transcriptWordCount,
+                            videoDurationFormatted = data.videoDurationFormatted
+                        )
+                    )
+                },
+                onFailure = { Result.failure(it) }
+            )
+    }
+
     override suspend fun generatePdfSummary(
         uri: Uri,
         style: SummaryStyle,

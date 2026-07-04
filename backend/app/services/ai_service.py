@@ -3,35 +3,13 @@ import time
 
 import httpx
 
-from app.config.ai_config import MODEL_NAME, TEMPERATURE, MAX_TOKENS, BASE_URL, TIMEOUT_SECONDS, API_KEY
+from app.config.ai_config import PRIMARY_MODEL, FALLBACK_MODEL, TEMPERATURE, MAX_TOKENS, BASE_URL, TIMEOUT_SECONDS, API_KEY
 from app.utils.markdown_cleaner import clean_markdown
 
 logger = logging.getLogger(__name__)
 
-SYSTEM_PROMPTS: dict[str, str] = {
-    "CONCISE": (
-        "You are a professional summarizer. Provide a concise, clear summary of the given text. "
-        "Focus on the main points and key takeaways. Keep it brief and well-structured."
-    ),
-    "DETAILED": (
-        "You are a professional summarizer. Provide a detailed, comprehensive summary of the given text. "
-        "Include all important points, supporting details, and maintain the original context. "
-        "Structure the summary with clear paragraphs."
-    ),
-    "BULLET_POINTS": (
-        "You are a professional summarizer. Summarize the given text using clear bullet points. "
-        "Each bullet should capture one key idea or important fact. "
-        "Organize them logically for easy reading."
-    ),
-    "KEY_FACTS": (
-        "You are a professional summarizer. Extract and list the key facts from the given text. "
-        "Focus on statistics, dates, names, and verifiable information. "
-        "Present each fact as a separate bullet point with a bold label."
-    ),
-}
 
-
-async def call_openrouter(
+async def _do_openrouter_call(
     messages: list[dict],
     model: str | None = None,
     max_tokens: int | None = None,
@@ -45,7 +23,7 @@ async def call_openrouter(
         }
 
     payload = {
-        "model": model or MODEL_NAME,
+        "model": model or PRIMARY_MODEL,
         "messages": messages,
         "max_tokens": max_tokens or MAX_TOKENS,
         "temperature": temperature or TEMPERATURE,
@@ -81,7 +59,7 @@ async def call_openrouter(
     elapsed = time.monotonic() - start
     logger.debug(
         "OpenRouter | model=%s | status=%d | %.2fs",
-        model or MODEL_NAME,
+        model or PRIMARY_MODEL,
         response.status_code,
         elapsed,
     )
@@ -106,6 +84,7 @@ async def call_openrouter(
     try:
         data = response.json()
     except Exception:
+        logger.exception("Failed to parse AI service response: status=%d", response.status_code)
         return {"success": False, "error": "PARSE_ERROR", "message": "Invalid response from AI service."}
 
     content = (
@@ -120,3 +99,32 @@ async def call_openrouter(
         return {"success": False, "error": "EMPTY_RESPONSE", "message": "AI service returned empty content."}
 
     return {"success": True, "content": clean_markdown(content.strip())}
+
+
+_fallback_404_warned: bool = False
+
+
+async def call_openrouter(
+    messages: list[dict],
+    model: str | None = None,
+    max_tokens: int | None = None,
+    temperature: float | None = None,
+) -> dict:
+    global _fallback_404_warned
+
+    actual_model = model or PRIMARY_MODEL
+    result = await _do_openrouter_call(messages, actual_model, max_tokens, temperature)
+
+    if result.get("error") == "MODEL_NOT_FOUND" and not _fallback_404_warned:
+        logger.warning("Configured model '%s' not found (404). This may indicate an invalid model name.", actual_model)
+        _fallback_404_warned = True
+
+    if not result["success"] and result.get("error") == "MODEL_UNAVAILABLE":
+        logger.warning("Primary model '%s' unavailable (402), falling back to '%s'", actual_model, FALLBACK_MODEL)
+        fallback_result = await _do_openrouter_call(messages, FALLBACK_MODEL, max_tokens, temperature)
+        if fallback_result["success"]:
+            logger.info("Fallback model '%s' succeeded", FALLBACK_MODEL)
+            return fallback_result
+        logger.error("Fallback model '%s' also failed: %s", FALLBACK_MODEL, fallback_result.get("error"))
+
+    return result

@@ -20,9 +20,9 @@ async def chat_with_pdf(request: ChatRequest):
             history=request.history,
         )
         return ChatResponse(**result)
-    except Exception as e:
-        logger.error("Chat failed: %s", e)
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        logger.exception("Chat failed: document_id=%s", request.documentId)
+        raise HTTPException(status_code=500, detail="An unexpected error occurred while processing your question.")
 
 
 @router.post("/task", response_model=TaskResponse)
@@ -34,10 +34,11 @@ async def perform_task(request: TaskRequest):
             language=request.language,
         )
         if "error" in result:
-            raise HTTPException(status_code=500, detail=result["error"])
+            status = 402 if result.get("error_type") == "MODEL_UNAVAILABLE" else 500
+            raise HTTPException(status_code=status, detail=result["error"])
         return TaskResponse(content=result["content"])
     except HTTPException:
         raise
-    except Exception as e:
-        logger.error("Task failed: %s", e)
+    except Exception:
+        logger.exception("Task failed: document_id=%s task_type=%s", request.documentId, request.taskType)
         raise HTTPException(status_code=500, detail="An unexpected error occurred.")

@@ -9,6 +9,8 @@ import com.example.summraai.data.remote.ChatMessage
 import com.example.summraai.data.remote.RetrofitClient
 import com.example.summraai.data.remote.SummarizeRequest
 import com.example.summraai.data.remote.TaskRequest
+import com.example.summraai.data.remote.WebsiteSummarizeRequest
+import com.example.summraai.data.remote.YoutubeSummarizeRequest
 import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
@@ -25,6 +27,77 @@ class AIServiceImpl : AIService {
             val response = RetrofitClient.backendApi.summarize(request)
             if (response.success && response.summary != null) {
                 Result.success(response.summary)
+            } else {
+                Result.failure(IOException(response.message ?: "Unknown server error"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun generateWebsiteSummary(
+        url: String,
+        style: String
+    ): Result<WebsiteSummaryData> {
+        return try {
+            val request = WebsiteSummarizeRequest(url = url, style = style)
+            val response = RetrofitClient.backendApi.summarizeWebsite(request)
+            if (response.success && response.summary != null) {
+                Result.success(
+                    WebsiteSummaryData(
+                        content = response.summary,
+                        documentId = response.documentId,
+                        title = response.metadata?.title,
+                        domain = response.metadata?.domain,
+                        author = response.metadata?.author,
+                        publishedDate = response.metadata?.publishedDate,
+                        language = response.metadata?.language,
+                        description = response.metadata?.description,
+                        ogImage = response.metadata?.ogImage,
+                        favicon = response.metadata?.favicon,
+                        canonicalUrl = response.metadata?.canonicalUrl,
+                        wordCount = response.wordCount,
+                        originalWordCount = response.originalWordCount,
+                        compressionRatio = response.compressionRatio,
+                        readingTimeSeconds = response.readingTimeSeconds,
+                        style = response.style
+                    )
+                )
+            } else {
+                Result.failure(IOException(response.message ?: "Unknown server error"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun generateYoutubeSummary(
+        url: String,
+        style: String
+    ): Result<YoutubeSummaryData> {
+        return try {
+            val request = YoutubeSummarizeRequest(url = url, style = style)
+            val response = RetrofitClient.backendApi.summarizeYoutube(request)
+            if (response.success && response.summary != null) {
+                Result.success(
+                    YoutubeSummaryData(
+                        content = response.summary,
+                        documentId = response.documentId,
+                        title = response.metadata?.title,
+                        channel = response.metadata?.channel,
+                        channelUrl = response.metadata?.channelUrl,
+                        durationSeconds = response.metadata?.durationSeconds,
+                        thumbnailUrl = response.metadata?.thumbnailUrl,
+                        viewCount = response.metadata?.viewCount,
+                        publishDate = response.metadata?.publishDate,
+                        description = response.metadata?.description,
+                        language = response.metadata?.language,
+                        wordCount = response.wordCount,
+                        transcriptWordCount = response.transcriptWordCount,
+                        videoDurationFormatted = response.videoDurationFormatted,
+                        style = response.style
+                    )
+                )
             } else {
                 Result.failure(IOException(response.message ?: "Unknown server error"))
             }

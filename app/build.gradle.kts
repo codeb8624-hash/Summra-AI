@@ -6,18 +6,22 @@ plugins {
     alias(libs.plugins.ksp)
 }
 
+kotlin {
+    jvmToolchain(17)
+}
+
 val localProperties = rootProject.file("local.properties").takeIf { it.exists() }?.let {
     Properties().apply { load(it.inputStream()) }
 }
 
 android {
     namespace = "com.example.summraai"
-    compileSdk = 36
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.example.summraai"
         minSdk = 24
-        targetSdk = 36
+        targetSdk = 35
         versionCode = 1
         versionName = "1.0"
 

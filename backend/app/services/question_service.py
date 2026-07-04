@@ -39,7 +39,7 @@ class QuestionService:
 
         if not result["success"]:
             logger.debug("Task OpenRouter error: %s", result.get("error"))
-            return {"error": result.get("message", "Failed to generate content")}
+            return {"error": result.get("message", "Failed to generate content"), "error_type": result.get("error")}
 
         return {"content": clean_markdown(result["content"])}
 
