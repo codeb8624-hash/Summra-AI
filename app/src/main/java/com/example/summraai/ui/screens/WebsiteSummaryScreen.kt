@@ -74,7 +74,7 @@ import androidx.compose.material3.AssistChipDefaults
 @Composable
 fun WebsiteSummaryScreen(
     onNavigateBack: () -> Unit,
-    viewModel: WebsiteSummaryViewModel = viewModel()
+    viewModel: WebsiteSummaryViewModel = viewModel(factory = WebsiteSummaryViewModel.Factory)
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val chatMessages by viewModel.chatMessages.collectAsState()

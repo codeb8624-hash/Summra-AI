@@ -212,6 +212,6 @@ uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 
 ## Configuration
 
-- **Android:** Backend URL in `AIConfig.kt` and `RetrofitClient.kt` (default: `http://10.123.232.32:8000`)
+- **Android:** Backend URL in `AIConfig.kt` and `RetrofitClient.kt` (default: `http://10.221.173.32:8000`)
 - **Backend:** API key in `.env`, model = `gpt-4o-mini`, temperature = `0.7`
 - **Backend IP** can be changed in both files above to match your server

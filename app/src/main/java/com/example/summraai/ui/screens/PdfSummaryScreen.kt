@@ -87,7 +87,7 @@ import androidx.compose.material3.Surface
 @Composable
 fun PdfSummaryScreen(
     onNavigateBack: () -> Unit,
-    viewModel: PdfSummaryViewModel = viewModel()
+    viewModel: PdfSummaryViewModel = viewModel(factory = PdfSummaryViewModel.Factory)
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val chatMessages by viewModel.chatMessages.collectAsState()

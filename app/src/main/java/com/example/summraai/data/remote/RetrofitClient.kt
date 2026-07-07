@@ -27,7 +27,7 @@ object RetrofitClient {
             .build()
     }
 
-    var backendBaseUrl: String = "http://10.123.232.32:8000"
+    var backendBaseUrl: String = "http://10.221.173.32:8000"
 
     private var _backendApi: BackendApi? = null
 

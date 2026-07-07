@@ -1,6 +1,7 @@
 package com.example.summraai.ui.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -20,10 +21,14 @@ import com.example.summraai.ui.screens.WebsiteSummaryScreen
 import com.example.summraai.ui.screens.YoutubeSummaryScreen
 
 @Composable
-fun SummraNavGraph(navController: NavHostController) {
+fun SummraNavGraph(
+    navController: NavHostController,
+    modifier: Modifier = Modifier
+) {
     NavHost(
         navController = navController,
-        startDestination = SummraScreen.Splash.route
+        startDestination = SummraScreen.Splash.route,
+        modifier = modifier
     ) {
         composable(SummraScreen.Splash.route) {
             SplashScreen(
@@ -38,14 +43,12 @@ fun SummraNavGraph(navController: NavHostController) {
         composable(SummraScreen.Home.route) {
             HomeScreen(
                 onNavigateToHistory = { navController.navigate(SummraScreen.History.route) },
-                onNavigateToCollections = { navController.navigate(SummraScreen.Collections.route) },
-                onNavigateToSettings = { navController.navigate(SummraScreen.Settings.route) },
-                onNavigateToProfile = { navController.navigate(SummraScreen.Profile.route) },
                 onNavigateToSummary = { summaryId -> navController.navigate(SummraScreen.SummaryResult.createRoute(summaryId)) },
                 onNavigateToTextSummary = { navController.navigate(SummraScreen.TextSummary.route) },
                 onNavigateToPdfSummary = { navController.navigate(SummraScreen.PdfSummary.route) },
                 onNavigateToWebsiteSummary = { navController.navigate(SummraScreen.WebsiteSummary.route) },
-                onNavigateToYoutubeSummary = { navController.navigate(SummraScreen.YoutubeSummary.route) }
+                onNavigateToYoutubeSummary = { navController.navigate(SummraScreen.YoutubeSummary.route) },
+                onNavigateToSettings = { navController.navigate(SummraScreen.Settings.route) }
             )
         }
 

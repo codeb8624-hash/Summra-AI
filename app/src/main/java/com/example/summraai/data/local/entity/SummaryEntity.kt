@@ -17,7 +17,8 @@ data class SummaryEntity(
     val wordCount: Int,
     val tags: List<String>,
     val isBookmarked: Boolean,
-    val style: SummaryStyle
+    val style: SummaryStyle,
+    val lastViewedAt: Long? = null
 )
 
 fun SummaryEntity.toDomain(): Summary = Summary(
@@ -43,5 +44,6 @@ fun Summary.toEntity(): SummaryEntity = SummaryEntity(
     wordCount = wordCount,
     tags = tags,
     isBookmarked = isBookmarked,
-    style = style
+    style = style,
+    lastViewedAt = createdAt
 )

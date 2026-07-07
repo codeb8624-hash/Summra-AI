@@ -2,14 +2,24 @@ package com.example.summraai.viewmodel
 
 import android.content.ContentResolver
 import android.net.Uri
+import android.util.Log
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.example.summraai.SummraApplication
 import com.example.summraai.core.common.UiState
+import com.example.summraai.data.local.SummraDatabase
 import com.example.summraai.data.remote.ChatMessage
 import com.example.summraai.data.repository.AISummaryRepository
 import com.example.summraai.data.repository.AISummaryRepositoryImpl
 import com.example.summraai.data.repository.PdfSummaryResult
+import com.example.summraai.data.repository.RoomSummaryRepository
+import com.example.summraai.domain.model.HistoryItem
+import com.example.summraai.domain.model.Summary
 import com.example.summraai.domain.model.SummaryStyle
+import com.example.summraai.domain.model.SummaryType
+import com.example.summraai.domain.repository.HistoryRepository
+import com.example.summraai.domain.repository.SummaryRepository
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -17,8 +27,24 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 class PdfSummaryViewModel(
-    private val repository: AISummaryRepository = AISummaryRepositoryImpl()
+    private val repository: AISummaryRepository = AISummaryRepositoryImpl(),
+    private val summaryRepository: SummaryRepository,
+    private val historyRepository: HistoryRepository
 ) : ViewModel() {
+
+    companion object {
+        val Factory: ViewModelProvider.Factory = object : ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                val db = SummraDatabase.getInstance(SummraApplication.instance)
+                val repo = RoomSummaryRepository(db.summaryDao(), db.collectionDao())
+                return PdfSummaryViewModel(
+                    summaryRepository = repo,
+                    historyRepository = repo
+                ) as T
+            }
+        }
+    }
 
     private val _uiState = MutableStateFlow<UiState<PdfSummaryResult>>(UiState.Idle)
     val uiState: StateFlow<UiState<PdfSummaryResult>> = _uiState.asStateFlow()
@@ -40,6 +66,33 @@ class PdfSummaryViewModel(
         generateJob = viewModelScope.launch {
             repository.generatePdfSummary(uri, style, contentResolver)
                 .onSuccess { result ->
+                    val id = java.util.UUID.randomUUID().toString()
+                    val summary = Summary(
+                        id = id,
+                        title = result.fileName ?: "PDF Summary",
+                        content = result.content,
+                        type = SummaryType.PDF,
+                        source = uri.toString(),
+                        createdAt = System.currentTimeMillis(),
+                        wordCount = result.wordCount ?: result.content.split("\\s+".toRegex()).size,
+                        tags = emptyList(),
+                        isBookmarked = false,
+                        style = style
+                    )
+                    Log.d("PIPELINE", "PdfSummaryViewModel: saving summary id=$id title=${result.fileName}")
+                    summaryRepository.saveSummary(summary)
+                    historyRepository.addToHistory(
+                        HistoryItem(
+                            id = id,
+                            title = result.fileName ?: "PDF Summary",
+                            summary = result.content,
+                            type = SummaryType.PDF,
+                            date = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date()),
+                            timestamp = System.currentTimeMillis()
+                        )
+                    )
+                    Log.d("PIPELINE", "PdfSummaryViewModel: save+history done for id=$id")
+
                     _uiState.value = UiState.Success(result)
                 }
                 .onFailure { error ->
@@ -57,7 +110,6 @@ class PdfSummaryViewModel(
 
         chatJob?.cancel()
         
-        // Add user message
         val userMessage = ChatUiMessage(role = "user", content = question)
         _chatMessages.value = _chatMessages.value + userMessage
         

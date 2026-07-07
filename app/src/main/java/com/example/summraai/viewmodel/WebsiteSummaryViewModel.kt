@@ -1,13 +1,23 @@
 package com.example.summraai.viewmodel
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.example.summraai.SummraApplication
 import com.example.summraai.core.common.UiState
+import com.example.summraai.data.local.SummraDatabase
 import com.example.summraai.data.remote.ChatMessage
 import com.example.summraai.data.repository.AISummaryRepository
 import com.example.summraai.data.repository.AISummaryRepositoryImpl
+import com.example.summraai.data.repository.RoomSummaryRepository
 import com.example.summraai.data.repository.WebsiteSummaryResult
+import com.example.summraai.domain.model.HistoryItem
+import com.example.summraai.domain.model.Summary
 import com.example.summraai.domain.model.SummaryStyle
+import com.example.summraai.domain.model.SummaryType
+import com.example.summraai.domain.repository.HistoryRepository
+import com.example.summraai.domain.repository.SummaryRepository
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -15,8 +25,24 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 class WebsiteSummaryViewModel(
-    private val repository: AISummaryRepository = AISummaryRepositoryImpl()
+    private val repository: AISummaryRepository = AISummaryRepositoryImpl(),
+    private val summaryRepository: SummaryRepository,
+    private val historyRepository: HistoryRepository
 ) : ViewModel() {
+
+    companion object {
+        val Factory: ViewModelProvider.Factory = object : ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                val db = SummraDatabase.getInstance(SummraApplication.instance)
+                val repo = RoomSummaryRepository(db.summaryDao(), db.collectionDao())
+                return WebsiteSummaryViewModel(
+                    summaryRepository = repo,
+                    historyRepository = repo
+                ) as T
+            }
+        }
+    }
 
     private val _uiState = MutableStateFlow<UiState<WebsiteSummaryResult>>(UiState.Idle)
     val uiState: StateFlow<UiState<WebsiteSummaryResult>> = _uiState.asStateFlow()
@@ -38,6 +64,33 @@ class WebsiteSummaryViewModel(
         generateJob = viewModelScope.launch {
             repository.generateWebsiteSummary(url, style)
                 .onSuccess { result ->
+                    val id = java.util.UUID.randomUUID().toString()
+                    val summary = Summary(
+                        id = id,
+                        title = result.title ?: result.domain ?: "Website Summary",
+                        content = result.content,
+                        type = SummaryType.WEBSITE,
+                        source = result.domain ?: url,
+                        createdAt = System.currentTimeMillis(),
+                        wordCount = result.content.split("\\s+".toRegex()).size,
+                        tags = emptyList(),
+                        isBookmarked = false,
+                        style = style
+                    )
+                    Log.d("PIPELINE", "WebsiteSummaryViewModel: saving summary id=$id title=${result.title}")
+                    summaryRepository.saveSummary(summary)
+                    historyRepository.addToHistory(
+                        HistoryItem(
+                            id = id,
+                            title = result.title ?: result.domain ?: "Website Summary",
+                            summary = result.content,
+                            type = SummaryType.WEBSITE,
+                            date = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date()),
+                            timestamp = System.currentTimeMillis()
+                        )
+                    )
+                    Log.d("PIPELINE", "WebsiteSummaryViewModel: save+history done for id=$id")
+
                     _uiState.value = UiState.Success(result)
                 }
                 .onFailure { error ->

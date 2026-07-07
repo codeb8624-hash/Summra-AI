@@ -54,7 +54,7 @@ import com.example.summraai.viewmodel.TextSummaryViewModel
 @Composable
 fun TextSummaryScreen(
     onNavigateBack: () -> Unit,
-    viewModel: TextSummaryViewModel = viewModel()
+    viewModel: TextSummaryViewModel = viewModel(factory = TextSummaryViewModel.Factory)
 ) {
     val uiState by viewModel.uiState.collectAsState()
     var inputText by remember { mutableStateOf("") }

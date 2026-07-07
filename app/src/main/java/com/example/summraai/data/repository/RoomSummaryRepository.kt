@@ -1,5 +1,6 @@
 package com.example.summraai.data.repository
 
+import android.util.Log
 import com.example.summraai.data.local.dao.CollectionDao
 import com.example.summraai.data.local.dao.SummaryDao
 import com.example.summraai.data.local.entity.CollectionSummaryCrossRef
@@ -21,8 +22,11 @@ class RoomSummaryRepository(
     private val collectionDao: CollectionDao
 ) : SummaryRepository, HistoryRepository {
 
-    override suspend fun getSummaries(): List<Summary> =
-        summaryDao.getAllSummaries().first().map { it.toDomain() }
+    override suspend fun getSummaries(): List<Summary> {
+        val summaries = summaryDao.getAllSummaries().first().map { it.toDomain() }
+        Log.d("PIPELINE", "getSummaries: count=${summaries.size}")
+        return summaries
+    }
 
     fun getAllSummariesFlow(): Flow<List<Summary>> =
         summaryDao.getAllSummaries().map { list -> list.map { it.toDomain() } }
@@ -30,17 +34,19 @@ class RoomSummaryRepository(
     fun getFavoriteSummariesFlow(): Flow<List<Summary>> =
         summaryDao.getFavoriteSummaries().map { list -> list.map { it.toDomain() } }
 
-    fun searchSummariesFlow(query: String): Flow<List<Summary>> =
+    override fun searchSummariesFlow(query: String): Flow<List<Summary>> =
         summaryDao.searchSummaries(query).map { list -> list.map { it.toDomain() } }
 
-    fun getSummaryByIdFlow(id: String): Flow<Summary?> =
+    override fun getSummaryByIdFlow(id: String): Flow<Summary?> =
         summaryDao.getSummaryByIdFlow(id).map { it?.toDomain() }
 
     override suspend fun getSummaryById(id: String): Summary? =
         summaryDao.getSummaryById(id)?.toDomain()
 
-    override suspend fun saveSummary(summary: Summary) =
+    override suspend fun saveSummary(summary: Summary) {
+        Log.d("PIPELINE", "saveSummary: id=${summary.id}, type=${summary.type}, title=${summary.title}")
         summaryDao.insert(summary.toEntity())
+    }
 
     override suspend fun deleteSummary(id: String) =
         summaryDao.deleteById(id)
@@ -56,20 +62,25 @@ class RoomSummaryRepository(
     suspend fun updateTitle(id: String, title: String) =
         summaryDao.updateTitle(id, title)
 
-    override suspend fun getHistory(): List<HistoryItem> =
-        summaryDao.getAllSummaries().first().map { entity ->
-            HistoryItem(
-                id = entity.id,
-                title = entity.title,
-                summary = entity.content,
-                type = entity.type,
-                date = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
-                    .format(java.util.Date(entity.createdAt)),
-                timestamp = entity.createdAt
-            )
+    override fun getHistory(): Flow<List<HistoryItem>> =
+        summaryDao.getAllSummaries().map { list ->
+            list.map { entity ->
+                HistoryItem(
+                    id = entity.id,
+                    title = entity.title,
+                    summary = entity.content,
+                    type = entity.type,
+                    date = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
+                        .format(java.util.Date(entity.createdAt)),
+                    timestamp = entity.createdAt
+                )
+            }
         }
 
+    override fun getSummariesFlow(): Flow<List<Summary>> = getAllSummariesFlow()
+
     override suspend fun addToHistory(item: HistoryItem) {
+        Log.d("PIPELINE", "addToHistory: id=${item.id}, type=${item.type}, title=${item.title}")
         val summary = Summary(
             id = item.id,
             title = item.title,
@@ -99,8 +110,10 @@ class RoomSummaryRepository(
             }
         }
 
-    suspend fun createCollection(collection: SummaryCollection) =
+    suspend fun createCollection(collection: SummaryCollection) {
+        Log.d("PIPELINE", "createCollection: id=${collection.id}, name=${collection.name}")
         collectionDao.insert(collection.toEntity())
+    }
 
     suspend fun updateCollection(id: String, name: String, description: String) =
         collectionDao.update(id, name, description)

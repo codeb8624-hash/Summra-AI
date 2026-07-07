@@ -77,7 +77,7 @@ import androidx.compose.material3.AssistChipDefaults
 @Composable
 fun YoutubeSummaryScreen(
     onNavigateBack: () -> Unit,
-    viewModel: YoutubeSummaryViewModel = viewModel()
+    viewModel: YoutubeSummaryViewModel = viewModel(factory = YoutubeSummaryViewModel.Factory)
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val chatMessages by viewModel.chatMessages.collectAsState()
